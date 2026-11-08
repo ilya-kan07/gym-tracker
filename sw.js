@@ -1,12 +1,13 @@
-const CACHE = 'gym-v1';
+const CACHE = 'gym-v2';
 const FILES = [
   './',
   './index.html',
   './css/style.css',
   './js/app.js',
+  './js/db.js',
+  './js/lib/dexie.min.js',
   './manifest.webmanifest'
 ];
-
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
 });
