@@ -54,8 +54,56 @@ function daysSince(date) {
   return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
+// ===== Дата тренировки =====
+// null = «сегодня» (определяется автоматически). Иначе выбранная вручную дата
+let manualDate = null;
+
+function getWorkDate() {
+  return manualDate || todayStr();
+}
+
+// Как называть выбранный день: «Сегодня» или «1 ноября»
+function dayWord() {
+  return manualDate ? dateLabel(manualDate) : 'Сегодня';
+}
+
+// Строка выбора даты (вставляется под заголовок экрана)
+function dateBarHtml() {
+  const current = getWorkDate();
+  return `
+    <div class="datebar ${manualDate ? 'past' : ''}">
+      <label for="workdate">Дата тренировки</label>
+      <input type="date" id="workdate" value="${current}" max="${todayStr()}">
+      ${manualDate ? '<button type="button" id="todaybtn">Сегодня</button>' : ''}
+    </div>`;
+}
+
+// Подключает строку выбора даты; rerender перерисовывает текущий экран
+function bindDateBar(rerender) {
+  const input = document.getElementById('workdate');
+  input.addEventListener('change', () => {
+    const v = input.value;
+    // пустое значение и будущие даты игнорируем
+    if (!v || v > todayStr()) {
+      input.value = getWorkDate();
+      return;
+    }
+    manualDate = v === todayStr() ? null : v;
+    rerender();
+  });
+
+  const btn = document.getElementById('todaybtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      manualDate = null;
+      rerender();
+    });
+  }
+}
+
 // ===== Экран 1: выбор дня =====
 async function renderHome() {
+  manualDate = null; // на главном экране всегда возвращаемся к сегодняшней дате
   const programDays = await db.programDays.toArray();
 
   // Группируем по названию дня: «Грудь-Бицепс» -> [неделя 1, неделя 2]
@@ -107,10 +155,11 @@ async function renderDay(dayId) {
     return;
   }
 
-  const today = todayStr();
+  const today = getWorkDate();
   let html = `
     <a class="back" href="#/">‹ Назад</a>
-    <h1>${esc(day.group)} · ${day.week} нед.</h1>`;
+    <h1>${esc(day.group)} · ${day.week} нед.</h1>
+    ${dateBarHtml()}`;
 
   for (const exId of day.exerciseIds) {
     const ex = await db.exercises.get(exId);
@@ -126,7 +175,7 @@ async function renderDay(dayId) {
       : 'Прошлый раз: нет данных';
 
     const doneText = todayCount
-      ? `<span class="done">Сегодня: ${todayCount} подх.</span> · `
+      ? `<span class="done">${dayWord()}: ${todayCount} подх.</span> · `
       : '';
 
     html += `
@@ -136,6 +185,7 @@ async function renderDay(dayId) {
       </a>`;
   }
   app.innerHTML = html;
+  bindDateBar(() => renderDay(dayId));
 }
 
 // ===== Экран 3: упражнение (ввод подходов) =====
@@ -146,7 +196,7 @@ async function renderExercise(exId) {
     return;
   }
 
-  const today = todayStr();
+  const today = getWorkDate();
   const todaySets = await getSetsByDate(exId, today);
   const prevSets = await getPreviousSets(exId, today);
   const past = await getHistory(exId, today, 5);
@@ -220,7 +270,7 @@ async function renderExercise(exId) {
   const todayBlock = todaySets.length
     ? `
     <section class="card">
-      <h2>Сегодня</h2>
+      <h2>${dayWord()}</h2>
       <div class="sets-list">
         ${todaySets
           .map(
@@ -241,7 +291,7 @@ async function renderExercise(exId) {
 
   // --- Блок «История» ---
   const rows = [];
-  if (todaySets.length) rows.push({ label: 'Сегодня', vol: todayVol, today: true });
+  if (todaySets.length) rows.push({ label: dayWord(), vol: todayVol, today: true });
   for (const h of past) rows.push({ label: dateLabel(h.date), vol: h.volume });
 
   const maxVol = Math.max(...rows.map((r) => r.vol), 1);
@@ -265,6 +315,7 @@ async function renderExercise(exId) {
   app.innerHTML = `
     <a class="back" id="back" href="#/">‹ Назад</a>
     <h1>${esc(ex.name)}</h1>
+    ${dateBarHtml()}
     ${prevBlock}
     ${formBlock}
     ${todayBlock}
@@ -273,6 +324,7 @@ async function renderExercise(exId) {
   // ===== Обработчики =====
 
   // Назад: на предыдущий экран (список упражнений дня)
+  bindDateBar(() => renderExercise(exId));
   document.getElementById('back').addEventListener('click', (e) => {
     e.preventDefault();
     if (history.length > 1) history.back();
