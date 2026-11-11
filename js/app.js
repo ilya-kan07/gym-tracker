@@ -43,18 +43,43 @@ function totalReps(sets) {
   return sets.reduce((sum, s) => sum + s.reps, 0);
 }
 
+// 0 -> «сегодня», 1 -> «вчера», 5 -> «5 дн. назад»
+function daysAgoText(n) {
+  if (n <= 0) return 'сегодня';
+  if (n === 1) return 'вчера';
+  return `${n} дн. назад`;
+}
+
+function daysSince(date) {
+  return Math.floor((Date.now() - date.getTime()) / 86400000);
+}
+
 // ===== Экран 1: выбор дня =====
 async function renderHome() {
-  const days = await db.programDays.toArray();
+  const programDays = await db.programDays.toArray();
 
   // Группируем по названию дня: «Грудь-Бицепс» -> [неделя 1, неделя 2]
   const groups = new Map();
-  for (const day of days) {
+  for (const day of programDays) {
     if (!groups.has(day.group)) groups.set(day.group, []);
     groups.get(day.group).push(day);
   }
 
-  let html = '<h1>Тренировка</h1>';
+  // Напоминание о резервной копии
+  const setsCount = await db.sets.count();
+  const last = getLastBackup();
+  let banner = '';
+  if (setsCount > 0) {
+    if (!last) {
+      banner = `<a class="banner" href="#/settings">Резервной копии ещё не было. Сохранить →</a>`;
+    } else if (daysSince(last) >= 7) {
+      banner = `<a class="banner" href="#/settings">Последняя копия: ${daysAgoText(
+        daysSince(last)
+      )}. Сохранить →</a>`;
+    }
+  }
+
+  let html = `<h1>Тренировка</h1>${banner}`;
   for (const [name, list] of groups) {
     list.sort((a, b) => a.week - b.week);
     html += `
@@ -70,6 +95,7 @@ async function renderHome() {
         </div>
       </section>`;
   }
+  html += `<a class="settings-link" href="#/settings">Резервная копия и данные</a>`;
   app.innerHTML = html;
 }
 
@@ -310,6 +336,113 @@ async function deleteSet(exId, setId) {
   await renderExercise(exId);
 }
 
+// ===== Экран 4: данные и резервная копия =====
+async function renderSettings() {
+  // Файл готовим заранее: iOS разрешает открыть меню «Поделиться»
+  // только сразу после нажатия, без долгих ожиданий
+  const payload = await exportData();
+  const json = JSON.stringify(payload, null, 2);
+  const fileName = `gym-backup-${todayStr()}.json`;
+  const file = new File([json], fileName, { type: 'application/json' });
+  const setsCount = payload.data.sets.length;
+
+  const last = getLastBackup();
+  const lastText = last
+    ? `${last.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} (${daysAgoText(
+        daysSince(last)
+      )})`
+    : 'ещё не было';
+
+  app.innerHTML = `
+    <a class="back" href="#/">‹ Назад</a>
+    <h1>Данные</h1>
+
+    <section class="card">
+      <h2>Резервная копия</h2>
+      <div class="card-sub">Подходов в базе: ${setsCount}<br>Последняя копия: ${lastText}</div>
+      <button type="button" id="save" class="primary">Сохранить копию</button>
+      <p class="hint">В открывшемся меню выбери «Сохранить в Файлы» и папку в iCloud Drive.</p>
+    </section>
+
+    <section class="card">
+      <h2>Восстановление</h2>
+      <p class="hint">Все текущие данные будут заменены содержимым файла.</p>
+      <label for="file" class="secondary">Загрузить из файла</label>
+      <input id="file" type="file" accept=".json,application/json" hidden>
+    </section>`;
+
+  // Сохранить копию
+  document.getElementById('save').addEventListener('click', async () => {
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Gym Tracker — копия' });
+      } else {
+        // Запасной вариант: обычное скачивание файла
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+      markBackupDone();
+      await renderSettings();
+    } catch (err) {
+      // AbortError: ты сам закрыл меню, это не ошибка
+      if (err.name !== 'AbortError') {
+        alert('Не удалось сохранить файл: ' + err.message);
+      }
+    }
+  });
+
+  // Восстановить из файла
+  document.getElementById('file').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+
+    try {
+      let obj;
+      try {
+        obj = JSON.parse(await f.text());
+      } catch {
+        alert('Не удалось прочитать файл: он повреждён или это не копия приложения.');
+        return;
+      }
+
+      const problem = validateBackup(obj);
+      if (problem) {
+        alert(problem);
+        return;
+      }
+
+      const when = obj.exportedAt
+        ? new Date(obj.exportedAt).toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+          })
+        : 'неизвестной даты';
+
+      const ok = confirm(
+        `Заменить все данные копией от ${when}?\n` +
+          `Подходов в файле: ${obj.data.sets.length}.\n` +
+          `Сейчас в приложении: ${setsCount}.\n` +
+          `Текущие данные будут удалены.`
+      );
+      if (!ok) return;
+
+      await importData(obj);
+      alert('Готово: данные восстановлены.');
+      location.hash = '#/';
+    } catch (err) {
+      alert('Не удалось восстановить данные: ' + err.message);
+    } finally {
+      e.target.value = '';
+    }
+  });
+}
+
 // ===== Маршрутизация =====
 async function route() {
   const hash = location.hash || '#/';
@@ -317,6 +450,7 @@ async function route() {
 
   if (parts[1] === 'day') await renderDay(Number(parts[2]));
   else if (parts[1] === 'exercise') await renderExercise(Number(parts[2]));
+  else if (parts[1] === 'settings') await renderSettings();
   else await renderHome();
 
   window.scrollTo(0, 0);

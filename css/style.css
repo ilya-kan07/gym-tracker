@@ -305,3 +305,49 @@ h1 {
 .hist-row.today .bar i {
   background: var(--accent);
 }
+
+/* ===== Резервная копия ===== */
+.banner {
+  display: block;
+  background: #2a1a0e;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.settings-link {
+  display: block;
+  text-align: center;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 16px 0 8px;
+  font-size: 15px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 10px 0 0;
+}
+
+.secondary {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 16px;
+  margin-top: 12px;
+  border-radius: 14px;
+  background: var(--card-hover);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.secondary:active {
+  background: var(--accent);
+}

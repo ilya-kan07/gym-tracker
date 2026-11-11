@@ -155,3 +155,96 @@ async function getHistory(exerciseId, beforeDate, limit = 5) {
     .slice(0, limit)
     .map(([date, sets]) => ({ date, sets, volume: calcVolume(sets) }));
 }
+
+// ===== Резервное копирование =====
+const BACKUP_KEY = 'gym-last-backup';
+
+// Собирает все данные в один объект
+async function exportData() {
+  const [exercises, programDays, workouts, sets] = await Promise.all([
+    db.exercises.toArray(),
+    db.programDays.toArray(),
+    db.workouts.toArray(),
+    db.sets.toArray(),
+  ]);
+  return {
+    app: 'gym-tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: { exercises, programDays, workouts, sets },
+  };
+}
+
+// Дата последней сохранённой копии (или null)
+function getLastBackup() {
+  try {
+    const v = localStorage.getItem(BACKUP_KEY);
+    return v ? new Date(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+function markBackupDone() {
+  try {
+    localStorage.setItem(BACKUP_KEY, new Date().toISOString());
+  } catch {}
+}
+
+// Проверка файла перед восстановлением. Возвращает текст ошибки или null
+function validateBackup(obj) {
+  if (!obj || obj.app !== 'gym-tracker' || !obj.data) {
+    return 'Это не файл резервной копии Gym Tracker.';
+  }
+  const d = obj.data;
+  for (const table of ['exercises', 'programDays', 'workouts', 'sets']) {
+    if (!Array.isArray(d[table])) return `В файле нет раздела «${table}».`;
+  }
+
+  const num = (x) => typeof x === 'number' && Number.isFinite(x);
+  const dateOk = /^\d{4}-\d{2}-\d{2}$/;
+
+  for (const e of d.exercises) {
+    if (!num(e.id) || typeof e.name !== 'string') return 'Повреждены данные упражнений.';
+  }
+  for (const p of d.programDays) {
+    if (!num(p.id) || !Array.isArray(p.exerciseIds)) return 'Повреждены данные программы.';
+  }
+  for (const s of d.sets) {
+    if (
+      !num(s.id) ||
+      !num(s.exerciseId) ||
+      !dateOk.test(s.date) ||
+      !num(s.setNumber) ||
+      !num(s.weight) ||
+      !num(s.reps)
+    ) {
+      return 'Повреждены данные подходов.';
+    }
+  }
+  return null;
+}
+
+// Полностью заменяет данные содержимым копии.
+// Это одна транзакция: при любой ошибке старые данные остаются нетронутыми
+async function importData(obj) {
+  const d = obj.data;
+  await db.transaction(
+    'rw',
+    db.exercises,
+    db.programDays,
+    db.workouts,
+    db.sets,
+    async () => {
+      await db.exercises.clear();
+      await db.programDays.clear();
+      await db.workouts.clear();
+      await db.sets.clear();
+
+      await db.exercises.bulkAdd(d.exercises);
+      await db.programDays.bulkAdd(d.programDays);
+      await db.workouts.bulkAdd(d.workouts);
+      await db.sets.bulkAdd(d.sets);
+    }
+  );
+}
