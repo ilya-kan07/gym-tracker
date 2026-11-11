@@ -129,3 +129,29 @@ async function getPreviousSets(exerciseId, beforeDate) {
     .equals([exerciseId, last.date])
     .sortBy('setNumber');
 }
+
+// Подходы упражнения за конкретную дату, по порядку номеров
+function getSetsByDate(exerciseId, date) {
+  return db.sets
+    .where('[exerciseId+date]')
+    .equals([exerciseId, date])
+    .sortBy('setNumber');
+}
+
+// История упражнения: последние тренировки ДО указанной даты.
+// Возвращает [{ date, sets, volume }], от новых к старым
+async function getHistory(exerciseId, beforeDate, limit = 5) {
+  const all = await db.sets.where('exerciseId').equals(exerciseId).toArray();
+
+  const byDate = new Map();
+  for (const s of all) {
+    if (s.date >= beforeDate) continue;
+    if (!byDate.has(s.date)) byDate.set(s.date, []);
+    byDate.get(s.date).push(s);
+  }
+
+  return [...byDate.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .slice(0, limit)
+    .map(([date, sets]) => ({ date, sets, volume: calcVolume(sets) }));
+}

@@ -112,3 +112,196 @@ h1 {
 .placeholder {
   color: var(--muted);
 }
+
+/* ===== Экран упражнения ===== */
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.card h2 {
+  font-size: 18px;
+  margin: 0 0 10px;
+}
+
+.card-sub {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  background: var(--card-hover);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 15px;
+}
+
+.chip b {
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.total {
+  margin-top: 12px;
+  font-weight: 600;
+}
+
+.total span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.up {
+  color: #34c759;
+}
+
+.down {
+  color: #ff453a;
+}
+
+/* Форма ввода */
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.stepper {
+  display: flex;
+  gap: 10px;
+}
+
+/* font-size не меньше 16px, иначе iPhone приближает страницу при вводе */
+.stepper input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 600;
+  background: var(--card-hover);
+  color: var(--text);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 12px 0;
+}
+
+.stepper input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.step {
+  width: 64px;
+  font-size: 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--card-hover);
+  color: var(--text);
+}
+
+.step:active {
+  background: var(--accent);
+}
+
+.primary {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.primary:active {
+  opacity: 0.8;
+}
+
+/* Список сегодняшних подходов */
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--card-hover);
+}
+
+.set-row:last-child {
+  border-bottom: none;
+}
+
+.set-row .num {
+  width: 28px;
+  color: var(--muted);
+}
+
+.set-row .val {
+  flex: 1;
+  font-weight: 600;
+}
+
+.del {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  padding: 6px 10px;
+}
+
+/* История объёмов */
+.hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.hist-row .d {
+  width: 84px;
+  color: var(--muted);
+}
+
+.hist-row.today .d {
+  color: var(--accent);
+}
+
+.hist-row .v {
+  width: 80px;
+  text-align: right;
+}
+
+.bar {
+  flex: 1;
+  height: 10px;
+  background: var(--card-hover);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+  border-radius: 5px;
+}
+
+.hist-row.today .bar i {
+  background: var(--accent);
+}
