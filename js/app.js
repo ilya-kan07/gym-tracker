@@ -17,7 +17,7 @@ function esc(text) {
 
 // 1160 -> «1 160», 72.5 -> «72,5»
 function fmt(n) {
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+  return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
 }
 
 // Из поля ввода в число (понимает и запятую, и точку)
