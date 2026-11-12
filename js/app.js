@@ -316,8 +316,8 @@ async function renderExercise(exId) {
     <a class="back" id="back" href="#/">‹ Назад</a>
     <h1>${esc(ex.name)}</h1>
     ${dateBarHtml()}
-    ${prevBlock}
     ${formBlock}
+    ${prevBlock}
     ${todayBlock}
     ${historyBlock}`;
 

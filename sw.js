@@ -1,4 +1,4 @@
-const CACHE = 'gym-v8';
+const CACHE = 'gym-v9';
 const FILES = [
   './',
   './index.html',
