@@ -48,16 +48,96 @@ h1 {
 }
 
 /* ===== Главный экран ===== */
+.hero {
+  display: block;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 22px;
+  text-decoration: none;
+}
+
+.hero:active {
+  opacity: 0.85;
+}
+
+.hero-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+.hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 6px 0 2px;
+}
+
+.hero-sub {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.hero-last {
+  font-size: 14px;
+  opacity: 0.85;
+  margin-top: 12px;
+}
+
+.hero-go {
+  display: inline-block;
+  margin-top: 14px;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 800;
+  padding: 10px 18px;
+  border-radius: 12px;
+}
+
+.section-title {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 4px 10px;
+}
+
 .group {
   background: var(--card);
   border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 14px;
+  border-left: 5px solid var(--gc, var(--muted));
+  padding: 14px 16px 16px;
+  margin-bottom: 12px;
+}
+
+.group.slot-today {
+  box-shadow: 0 0 0 1px var(--gc);
+}
+
+.group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
 }
 
 .group h2 {
-  font-size: 20px;
-  margin: 0 0 12px;
+  font-size: 19px;
+  margin: 0;
+}
+
+.weekday {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.slot-today .weekday {
+  color: var(--gc);
+  font-weight: 700;
 }
 
 .weeks {
@@ -67,17 +147,37 @@ h1 {
 
 .week-btn {
   flex: 1;
-  text-align: center;
-  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
   border-radius: 12px;
+  border: 2px solid transparent;
   background: var(--card-hover);
   color: var(--text);
   text-decoration: none;
-  font-weight: 600;
+}
+
+.week-btn .w {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.week-btn .l {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.week-btn.suggested {
+  border-color: var(--accent);
 }
 
 .week-btn:active {
   background: var(--accent);
+}
+
+.week-btn:active .l {
+  color: #fff;
 }
 
 /* ===== Экран дня ===== */

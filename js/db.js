@@ -22,6 +22,46 @@ db.version(2)
     await tx.table('exercises').clear();
   });
 
+// Версия 3: подходам, записанным раньше, проставляем день программы.
+// День определяется по набору упражнений, записанных в эту дату.
+// Если однозначно определить нельзя, подход остаётся без дня
+// (в истории он по-прежнему виден, просто не влияет на подсказку «следующая тренировка»)
+db.version(3)
+  .stores(SCHEMA)
+  .upgrade(async (tx) => {
+    const days = await tx.table('programDays').toArray();
+    const sets = await tx.table('sets').toArray();
+
+    const byDate = new Map();
+    for (const s of sets) {
+      if (s.dayId) continue;
+      if (!byDate.has(s.date)) byDate.set(s.date, []);
+      byDate.get(s.date).push(s);
+    }
+
+    for (const list of byDate.values()) {
+      const ids = new Set(list.map((s) => s.exerciseId));
+      let best = null;
+      let bestScore = 0;
+      let tie = false;
+      for (const d of days) {
+        const score = d.exerciseIds.filter((id) => ids.has(id)).length;
+        if (score > bestScore) {
+          best = d;
+          bestScore = score;
+          tie = false;
+        } else if (score === bestScore && score > 0) {
+          tie = true;
+        }
+      }
+      if (best && !tie) {
+        for (const s of list) {
+          await tx.table('sets').update(s.id, { dayId: best.id });
+        }
+      }
+    }
+  });
+
 // ===== Программа (порядок упражнений = их номера) =====
 // Упражнение с одинаковым названием на разных неделях — одно и то же,
 // история у него общая

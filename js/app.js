@@ -102,48 +102,152 @@ function bindDateBar(rerender) {
   }
 }
 
+// ===== Данные для главного экрана =====
+
+// День недели, цвет и расписание групп (меняй здесь, если расписание изменится).
+// dow: 0 = воскресенье, 1 = понедельник ... 6 = суббота
+const GROUP_INFO = {
+  'Грудь-Бицепс': { weekday: 'Вторник', dow: 2, color: '#ff6a1a' },
+  'Спина-Трицепс': { weekday: 'Четверг', dow: 4, color: '#0a84ff' },
+  'Ноги-Плечи': { weekday: 'Суббота', dow: 6, color: '#30d158' },
+};
+
+// Сколько дней назад была дата 'ГГГГ-ММ-ДД'
+function daysAgoFromStr(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [ty, tm, td] = todayStr().split('-').map(Number);
+  return Math.round(
+    (Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000
+  );
+}
+
+// Когда каждый день программы делался в последний раз
+// и какая тренировка была самой последней
+async function getWorkoutInfo() {
+  const sets = await db.sets.toArray();
+  const lastByDay = new Map(); // dayId -> 'ГГГГ-ММ-ДД'
+  let latest = null; // { dayId, date, id }
+
+  for (const s of sets) {
+    if (!s.dayId) continue;
+    if (!lastByDay.has(s.dayId) || s.date > lastByDay.get(s.dayId)) {
+      lastByDay.set(s.dayId, s.date);
+    }
+    if (
+      !latest ||
+      s.date > latest.date ||
+      (s.date === latest.date && s.id > latest.id)
+    ) {
+      latest = { dayId: s.dayId, date: s.date, id: s.id };
+    }
+  }
+  return { lastByDay, latest };
+}
+
 // ===== Экран 1: выбор дня =====
 async function renderHome() {
   manualDate = null; // на главном экране всегда возвращаемся к сегодняшней дате
-  const programDays = await db.programDays.toArray();
+
+  // Порядок по id = порядок цикла: 1 нед. Грудь → Спина → Ноги → 2 нед. ...
+  const cycle = (await db.programDays.toArray()).sort((a, b) => a.id - b.id);
 
   // Группируем по названию дня: «Грудь-Бицепс» -> [неделя 1, неделя 2]
   const groups = new Map();
-  for (const day of programDays) {
+  for (const day of cycle) {
     if (!groups.has(day.group)) groups.set(day.group, []);
     groups.get(day.group).push(day);
   }
 
   // Напоминание о резервной копии
   const setsCount = await db.sets.count();
-  const last = getLastBackup();
+  const lastBackup = getLastBackup();
   let banner = '';
   if (setsCount > 0) {
-    if (!last) {
+    if (!lastBackup) {
       banner = `<a class="banner" href="#/settings">Резервной копии ещё не было. Сохранить →</a>`;
-    } else if (daysSince(last) >= 7) {
+    } else if (daysSince(lastBackup) >= 7) {
       banner = `<a class="banner" href="#/settings">Последняя копия: ${daysAgoText(
-        daysSince(last)
+        daysSince(lastBackup)
       )}. Сохранить →</a>`;
     }
   }
 
-  let html = `<h1>Тренировка</h1>${banner}`;
+  // Какую тренировку предложить
+  const { lastByDay, latest } = await getWorkoutInfo();
+  let target = cycle[0];
+  let mode = 'next';
+  let lastDay = null;
+
+  if (latest) {
+    const i = cycle.findIndex((d) => d.id === latest.dayId);
+    if (i >= 0) {
+      lastDay = cycle[i];
+      if (latest.date === todayStr()) {
+        target = cycle[i]; // сегодня уже начата, предлагаем продолжить
+        mode = 'today';
+      } else {
+        target = cycle[(i + 1) % cycle.length];
+      }
+    }
+  }
+
+  const targetInfo = GROUP_INFO[target.group];
+  const weekdayText = targetInfo ? ` · ${targetInfo.weekday}` : '';
+
+  let lastLine = '';
+  if (mode === 'today') {
+    lastLine = 'Сегодня по ней уже есть записи';
+  } else if (lastDay) {
+    lastLine = `Прошлая: ${esc(lastDay.group)} · ${lastDay.week} нед., ${dateLabel(
+      latest.date
+    )} (${daysAgoText(daysAgoFromStr(latest.date))})`;
+  } else {
+    lastLine = 'Цикл ещё не начат';
+  }
+
+  let html = `<h1>Тренировка</h1>${banner}
+    <a class="hero" href="#/day/${target.id}">
+      <div class="hero-label">${
+        mode === 'today' ? 'Тренировка сегодня' : 'Следующая тренировка'
+      }</div>
+      <div class="hero-title">${esc(target.group)}</div>
+      <div class="hero-sub">${target.week} неделя${weekdayText}</div>
+      <div class="hero-last">${lastLine}</div>
+      <span class="hero-go">${mode === 'today' ? 'Продолжить →' : 'Начать →'}</span>
+    </a>
+    <div class="section-title">Все тренировки</div>`;
+
+  const todayDow = new Date().getDay();
+
   for (const [name, list] of groups) {
     list.sort((a, b) => a.week - b.week);
+    const info = GROUP_INFO[name] || { weekday: '', dow: -1, color: '#8e8e93' };
+    const isToday = info.dow === todayDow;
+
     html += `
-      <section class="group">
-        <h2>${esc(name)}</h2>
+      <section class="group ${isToday ? 'slot-today' : ''}" style="--gc:${info.color}">
+        <div class="group-head">
+          <h2>${esc(name)}</h2>
+          <span class="weekday">${info.weekday}${isToday ? ' · сегодня' : ''}</span>
+        </div>
         <div class="weeks">
           ${list
-            .map(
-              (d) =>
-                `<a class="week-btn" href="#/day/${d.id}">${d.week} неделя</a>`
-            )
+            .map((d) => {
+              const last = lastByDay.get(d.id);
+              const lastText = last
+                ? `${dateLabel(last)} · ${daysAgoText(daysAgoFromStr(last))}`
+                : 'ещё не было';
+              return `
+              <a class="week-btn ${d.id === target.id ? 'suggested' : ''}" href="#/day/${d.id}">
+                <span class="w">${d.week} неделя</span>
+                <span class="l">${lastText}</span>
+              </a>`;
+            })
             .join('')}
         </div>
       </section>`;
   }
+
   html += `<a class="settings-link" href="#/settings">Резервная копия и данные</a>`;
   app.innerHTML = html;
 }
@@ -372,6 +476,7 @@ async function renderExercise(exId) {
 
     await db.sets.add({
       exerciseId: exId,
+      dayId: exerciseDayId,
       date: today,
       setNumber: nextNumber,
       weight,
