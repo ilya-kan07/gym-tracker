@@ -57,6 +57,7 @@ function daysSince(date) {
 // ===== Дата тренировки =====
 // null = «сегодня» (определяется автоматически). Иначе выбранная вручную дата
 let manualDate = null;
+let exerciseDayId = null;
 
 function getWorkDate() {
   return manualDate || todayStr();
@@ -161,7 +162,8 @@ async function renderDay(dayId) {
     <h1>${esc(day.group)} · ${day.week} нед.</h1>
     ${dateBarHtml()}`;
 
-  for (const exId of day.exerciseIds) {
+  for (let i = 0; i < day.exerciseIds.length; i++) {
+    const exId = day.exerciseIds[i];
     const ex = await db.exercises.get(exId);
 
     const todayCount = await db.sets
@@ -179,12 +181,13 @@ async function renderDay(dayId) {
       : '';
 
     html += `
-      <a class="exercise" href="#/exercise/${ex.id}">
-        <div class="name">${esc(ex.name)}</div>
+      <a class="exercise" href="#/exercise/${ex.id}/${day.id}">
+        <div class="name">${i + 1}. ${esc(ex.name)}</div>
         <div class="meta">${doneText}${prevText}</div>
       </a>`;
   }
   app.innerHTML = html;
+
   bindDateBar(() => renderDay(dayId));
 }
 
@@ -312,9 +315,17 @@ async function renderExercise(exId) {
     </section>`
     : '';
 
+    // Номер упражнения в заголовке (по положению в дне программы)
+  let title = esc(ex.name);
+  if (exerciseDayId) {
+    const day = await db.programDays.get(exerciseDayId);
+    const idx = day ? day.exerciseIds.indexOf(exId) : -1;
+    if (idx >= 0) title = `${idx + 1}. ${title}`;
+  }
+
   app.innerHTML = `
     <a class="back" id="back" href="#/">‹ Назад</a>
-    <h1>${esc(ex.name)}</h1>
+    <h1>${title}</h1>
     ${dateBarHtml()}
     ${formBlock}
     ${prevBlock}
@@ -501,7 +512,10 @@ async function route() {
   const parts = hash.split('/'); // '#/day/3' -> ['#', 'day', '3']
 
   if (parts[1] === 'day') await renderDay(Number(parts[2]));
-  else if (parts[1] === 'exercise') await renderExercise(Number(parts[2]));
+  else if (parts[1] === 'exercise') {
+    exerciseDayId = Number(parts[3]) || null;
+    await renderExercise(Number(parts[2]));
+  }
   else if (parts[1] === 'settings') await renderSettings();
   else await renderHome();
 
