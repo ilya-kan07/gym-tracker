@@ -43,6 +43,76 @@ function totalReps(sets) {
   return sets.reduce((sum, s) => sum + s.reps, 0);
 }
 
+// '2026-11-01' -> '1.11'
+function dateShort(dateStr) {
+  const [, m, d] = dateStr.split('-');
+  return `${Number(d)}.${m}`;
+}
+
+// ===== График максимального веса =====
+function weightChartBlock(points, workDate) {
+  // упражнения со своим весом (везде 0) в графике не нуждаются
+  if (!points.length || points.every((p) => p.max === 0)) return '';
+
+  const W = 340;
+  const H = 200;
+  const padT = 32;
+  const padB = 34;
+  const left = 24;
+  const right = W - 24;
+  const n = points.length;
+
+  const vals = points.map((p) => p.max);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min;
+  const pad = span > 0 ? span * 0.25 : Math.max(max * 0.1, 1);
+  const lo = Math.max(0, min - pad);
+  const hi = max + pad;
+
+  const x = (i) => (n === 1 ? W / 2 : left + (i * (right - left)) / (n - 1));
+  const y = (v) => padT + ((hi - v) / (hi - lo)) * (H - padT - padB);
+
+  // горизонтальные линии сетки
+  let svg = '';
+  for (const f of [0, 0.5, 1]) {
+    const gy = padT + f * (H - padT - padB);
+    svg += `<line class="chart-grid" x1="${left - 10}" y1="${gy}" x2="${right + 10}" y2="${gy}"/>`;
+  }
+
+  // линия
+  if (n > 1) {
+    const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.max).toFixed(1)}`).join(' ');
+    svg += `<polyline class="chart-line" points="${line}"/>`;
+  }
+
+  // точки, значения и даты
+  points.forEach((p, i) => {
+    const cur = p.date === workDate;
+    svg += `<circle class="chart-dot ${cur ? 'cur' : ''}" cx="${x(i).toFixed(1)}" cy="${y(p.max).toFixed(1)}" r="${cur ? 5.5 : 4}"/>`;
+    svg += `<text class="chart-val" x="${x(i).toFixed(1)}" y="${(y(p.max) - 11).toFixed(1)}" text-anchor="middle">${fmt(p.max)}</text>`;
+    svg += `<text class="chart-date" x="${x(i).toFixed(1)}" y="${H - 12}" text-anchor="middle">${dateShort(p.date)}</text>`;
+  });
+
+  // итог: изменение от первой точки к последней
+  let note = '';
+  if (n >= 2) {
+    const diff = vals[n - 1] - vals[0];
+    const sign = diff > 0 ? '+' : '';
+    const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+    note = `<div class="total ${cls}">Изменение: ${sign}${fmt(diff)} кг
+      <span>· ${fmt(vals[0])} → ${fmt(vals[n - 1])} кг</span></div>`;
+  }
+
+  return `
+    <section class="card">
+      <h2>Максимальный вес</h2>
+      <div class="card-sub">Лучший вес за тренировку, до 10 последних</div>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="График максимального веса по тренировкам">${svg}</svg>
+      ${note}
+    </section>`;
+}
+
 // 0 -> «сегодня», 1 -> «вчера», 5 -> «5 дн. назад»
 function daysAgoText(n) {
   if (n <= 0) return 'сегодня';
@@ -419,6 +489,13 @@ async function renderExercise(exId) {
     </section>`
     : '';
 
+  // --- Блок «График максимального веса» ---
+  // число 10 — сколько последних тренировок показывать
+  const chartBlock = weightChartBlock(
+    await getMaxWeightHistory(exId, today, 10),
+    today
+  );
+
     // Номер упражнения в заголовке (по положению в дне программы)
   let title = esc(ex.name);
   if (exerciseDayId) {
@@ -434,7 +511,8 @@ async function renderExercise(exId) {
     ${formBlock}
     ${prevBlock}
     ${todayBlock}
-    ${historyBlock}`;
+    ${historyBlock}
+    ${chartBlock}`;
 
   // ===== Обработчики =====
 

@@ -62,6 +62,17 @@ db.version(3)
     }
   });
 
+// Версия 4: переименование упражнения (id остаётся прежним, история сохраняется)
+db.version(4)
+  .stores(SCHEMA)
+  .upgrade((tx) =>
+    tx
+      .table('exercises')
+      .where('name')
+      .equals('Жим лёжа в тренажере')
+      .modify({ name: 'Жим лёжа в хаммере' })
+  );
+
 // ===== Программа (порядок упражнений = их номера) =====
 // Упражнение с одинаковым названием на разных неделях — одно и то же,
 // история у него общая
@@ -104,7 +115,7 @@ const PROGRAM = [
     week: 2,
     exercises: [
       ['Жим лёжа в наклоне', 'Грудь'],
-      ['Жим лёжа в тренажере', 'Грудь'],
+      ['Жим лёжа в хаммере', 'Грудь'],
       ['Бицепс штанга (узким)', 'Бицепс'],
       ['Бабочка', 'Грудь'],
       ['Бицепс гантели', 'Бицепс'],
@@ -302,4 +313,21 @@ async function importData(obj) {
       await db.sets.bulkAdd(d.sets);
     }
   );
+}
+
+// Максимальный вес за тренировку: последние limit тренировок НЕ ПОЗЖЕ upToDate.
+// Возвращает [{ date, max }] от старых к новым
+async function getMaxWeightHistory(exerciseId, upToDate, limit = 10) {
+  const all = await db.sets.where('exerciseId').equals(exerciseId).toArray();
+
+  const byDate = new Map();
+  for (const s of all) {
+    if (s.date > upToDate) continue;
+    byDate.set(s.date, Math.max(byDate.get(s.date) ?? 0, s.weight));
+  }
+
+  return [...byDate.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-limit)
+    .map(([date, max]) => ({ date, max }));
 }
